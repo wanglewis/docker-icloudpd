@@ -593,15 +593,6 @@ SyncUser(){
             download_exit_code="$(cat /tmp/icloudpd/icloudpd_download_exit_code)"
             if [ "${download_exit_code}" -gt 0 ]; then
                echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR    Error during download - Exit code: ${download_exit_code}"
-               if [ "${notification_type}" = "Prowl" ] || [ "${notification_type}" = "Pushbullet" ] || [ "${notification_type}" = "Pushover" ]; then
-                  Notify "failure" "iCloudPD container failure" "-2" "iCloudPD failed to download new files for Apple ID ${apple_id} - Exit code ${download_exit_code}"
-               elif [ "${notification_type}" = "Telegram" ]; then
-                  telegram_text="$(echo -e "\xF0\x9F\x9A\xA8 *boredazfcuk/iCloudPD*\niCloudPD failed to download new files for Apple ID ${apple_id} - Exit code ${download_exit_code}")"
-                  Notify "failure" "${telegram_text}"
-               elif [ "${notification_type}" = "Webhook" ]; then
-                  webhook_payload="$(echo -e "boredazfcuk/iCloudPD - iCloudPD failed to download new files for Apple ID ${apple_id} - Exit code ${download_exit_code}")"
-                  Notify "failure" "${webhook_payload}"
-               fi
             else
                if [ "${download_notifications}" ]; then DownloadedFilesNotification; fi
                if [ "${convert_heic_to_jpeg}" != "False" ]; then
