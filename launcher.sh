@@ -77,15 +77,82 @@ set_user_mask()
 
 set_owner_and_permissions_downloads()
 {
+   local workers=6
+
    log_info " - Setting owner, group and permissions on: ${download_path}"
-   log_debug "   | Set owner"
-   find "${download_path}" ! -type l ! -user "${user_id}" ! -path "${ignore_path}" -exec chown "${user_id}" {} +
-   log_debug "   | Set group"
-   find "${download_path}" ! -type l ! -group "${group_id}" ! -path "${ignore_path}" -exec chgrp "${group_id}" {} +
-   log_debug "   | Set ${directory_permissions} permissions on directories"
-   find "${download_path}" -type d ! -perm "${directory_permissions}" ! -path "${ignore_path}" -exec chmod "${directory_permissions}" '{}' +
-   log_debug "   | Set ${file_permissions} permissions on files"
-   find "${download_path}" -type f ! -perm "${file_permissions}" ! -path "${ignore_path}" -exec chmod "${file_permissions}" '{}' +
+   log_info "   | Using ${workers} parallel workers"
+
+   # Download root itself
+   chown "${user_id}:${group_id}" "${download_path}"
+   chmod "${directory_permissions}" "${download_path}"
+
+   #
+   # Process files/directories in the first two levels.
+   # These are not covered by the parallel subtree workers below.
+   #
+   log_debug "   | Processing shallow files/directories"
+
+   # Owner + group in one pass
+   find "${download_path}" \
+      -mindepth 1 -maxdepth 2 \
+      -path "${ignore_path}" -prune -o \
+      ! -type l \
+      \( ! -user "${user_id}" -o ! -group "${group_id}" \) \
+      -exec chown "${user_id}:${group_id}" {} +
+
+   # Directory + file permissions in one pass
+   find "${download_path}" \
+      -mindepth 1 -maxdepth 2 \
+      -path "${ignore_path}" -prune -o \
+      \( -type d ! -perm "${directory_permissions}" \
+         -exec chmod "${directory_permissions}" {} + \) -o \
+      \( -type f ! -perm "${file_permissions}" \
+         -exec chmod "${file_permissions}" {} + \)
+
+   #
+   # Every level-2 directory becomes one independent job.
+   # Your benchmark showed this split performs much better.
+   #
+   log_debug "   | Processing deeper directory trees with ${workers} workers"
+
+   find "${download_path}" \
+      -mindepth 2 -maxdepth 2 \
+      -type d \
+      ! -path "${ignore_path}" \
+      -print0 |
+   xargs -0 -r -P "${workers}" -I{} \
+      sh -c '
+         target="$1"
+         uid="$2"
+         gid="$3"
+         dirperm="$4"
+         fileperm="$5"
+         ignore="$6"
+
+         # Owner + group in one traversal
+         find "$target" \
+            -mindepth 1 \
+            -path "$ignore" -prune -o \
+            ! -type l \
+            \( ! -user "$uid" -o ! -group "$gid" \) \
+            -exec chown "$uid:$gid" {} +
+
+         # Directory + file permissions in one traversal
+         find "$target" \
+            -mindepth 1 \
+            -path "$ignore" -prune -o \
+            \( -type d ! -perm "$dirperm" \
+               -exec chmod "$dirperm" {} + \) -o \
+            \( -type f ! -perm "$fileperm" \
+               -exec chmod "$fileperm" {} + \)
+      ' _ "{}" \
+      "${user_id}" \
+      "${group_id}" \
+      "${directory_permissions}" \
+      "${file_permissions}" \
+      "${ignore_path}"
+
+   log_info "   | Owner, group and permission processing complete"
 }
 
 set_owner_and_permissions_jpegs()
