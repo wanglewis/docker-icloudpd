@@ -42,6 +42,5 @@ jobs:
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:latest
-            ${{ env.IMAGE_NAME }}:parallel-p6
           cache-from: type=gha
           cache-to: type=gha,mode=max
