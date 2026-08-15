@@ -82,17 +82,16 @@ set_owner_and_permissions_downloads()
    log_info " - Setting owner, group and permissions on: ${download_path}"
    log_info "   | Using ${workers} parallel workers"
 
-   # Download root itself
+   # Root directory itself
    chown "${user_id}:${group_id}" "${download_path}"
    chmod "${directory_permissions}" "${download_path}"
 
    #
-   # Process files/directories in the first two levels.
-   # These are not covered by the parallel subtree workers below.
+   # Process first two levels
    #
    log_debug "   | Processing shallow files/directories"
 
-   # Owner + group in one pass
+   # Owner + group
    find "${download_path}" \
       -mindepth 1 -maxdepth 2 \
       -path "${ignore_path}" -prune -o \
@@ -100,7 +99,7 @@ set_owner_and_permissions_downloads()
       \( ! -user "${user_id}" -o ! -group "${group_id}" \) \
       -exec chown "${user_id}:${group_id}" {} +
 
-   # Directory + file permissions in one pass
+   # Permissions
    find "${download_path}" \
       -mindepth 1 -maxdepth 2 \
       -path "${ignore_path}" -prune -o \
@@ -110,8 +109,7 @@ set_owner_and_permissions_downloads()
          -exec chmod "${file_permissions}" {} + \)
 
    #
-   # Every level-2 directory becomes one independent job.
-   # Your benchmark showed this split performs much better.
+   # Parallel processing from level 2 downward
    #
    log_debug "   | Processing deeper directory trees with ${workers} workers"
 
@@ -120,7 +118,7 @@ set_owner_and_permissions_downloads()
       -type d \
       ! -path "${ignore_path}" \
       -print0 |
-   xargs -0 -r -P "${workers}" -I{} \
+   xargs -0 -r -P "${workers}" -I __TARGET__ \
       sh -c '
          target="$1"
          uid="$2"
@@ -129,7 +127,7 @@ set_owner_and_permissions_downloads()
          fileperm="$5"
          ignore="$6"
 
-         # Owner + group in one traversal
+         # Owner + group
          find "$target" \
             -mindepth 1 \
             -path "$ignore" -prune -o \
@@ -137,7 +135,7 @@ set_owner_and_permissions_downloads()
             \( ! -user "$uid" -o ! -group "$gid" \) \
             -exec chown "$uid:$gid" {} +
 
-         # Directory + file permissions in one traversal
+         # Permissions
          find "$target" \
             -mindepth 1 \
             -path "$ignore" -prune -o \
@@ -145,7 +143,8 @@ set_owner_and_permissions_downloads()
                -exec chmod "$dirperm" {} + \) -o \
             \( -type f ! -perm "$fileperm" \
                -exec chmod "$fileperm" {} + \)
-      ' _ "{}" \
+
+      ' _ "__TARGET__" \
       "${user_id}" \
       "${group_id}" \
       "${directory_permissions}" \
