@@ -27,6 +27,10 @@ Currently, I only reccomend setting one container environment variable, TZ, as t
 
 **notification_days**: When your cookie is nearing expiration, this is the number of days in advance it should notify you. You will receive a single notification, per day, in the days running up to cookie expiration. Default: 7.
 
+**wait_for_reauthentication**: Set this to **true** and the container will stay running when it needs to be re-authenticated, instead of exiting and being restarted by Docker over and over. Downloads are paused, and a reminder is sent through your configured notification method once per **download_interval** until you re-authenticate. If you use Telegram with **telegram_polling** enabled, this also means the container is listening for your "&lt;user name&gt; auth" reply while it is waiting - with the default behaviour it is not, because it never gets that far. While the container is waiting, the health check reports healthy, so autoheal will leave it alone. Default: false.
+
+**reauth_notification_interval**: The number of seconds between re-authentication reminders. Only used when **wait_for_reauthentication** is set. Default: the value of **download_interval**.
+
 **authentication_type**: This is the type of authentication that is enabled on your iCloud account. Valid values are 'MFA' if you have multifactor authentication enabled or 'Web' if you do not. If 'Web' is specified, then cookie generation is not required. Default: 'MFA'.
 
 **directory_permissions**: This specifies the permissions to set on the directories in your download destination. Default: 750.
@@ -116,6 +120,8 @@ adds asset id from iCloud to all file names and does not need de-duplication. De
 
 **video_path**: 
 
+**xmp_sidecar**: Set this to **true** to write a *.xmp sidecar file alongside each downloaded asset. Each sidecar contains metadata from iCloud not otherwise available locally (e.g. screenshot classification). For live photos, only the still image gets a sidecar. Default: false.
+
 # NEXTCLOUD CONFIGURATION ITEMS
 
 **nextcloud_delete**: Set this variable to **true** if you want to remove files from Nextcloud. This setting requires **auto_delete** to also be set to true. When a file is found in the 'Recently Deleted', the **auto_delete** function will remove the local file. If **nextcloud_delete** is also set to **true**, then it will remove that file from the Nextcloud server.
@@ -152,7 +158,7 @@ adds asset id from iCloud to all file names and does not need de-duplication. De
 
 **telegram_silent_file_notifications**: Optional if notification_type set to 'Telegram'. Set this to **true** for the file download notifications to be sent silently. Default = false
 
-**telegram_polling**: Optional if notification_type set to 'Telegram'. Set this to true to enable Telegram polling. This will check the Telegram chat for messages every 60 seconds. If the latest message is the user name, it will synchronise immediately
+**telegram_polling**: Optional if notification_type set to 'Telegram'. Set this to true to enable Telegram polling. This will check the Telegram chat for messages every 60 seconds. If the latest message is the user name, it will synchronise immediately. Sending the user name followed by `auth` starts the re-authentication process, after which the container will ask you for either a trusted device letter or a 6-digit code, which you also send prefixed with the user name. All of these are case insensitive and any extra spaces are ignored, so `boredazfcuk auth` and `Boredazfcuk Auth` do the same thing
 
 **telegram_server**: Optional if notification_type set to 'Telegram'. If Telegram is blocked in your country and you need to use a proxy server to access it, put the fully qualified domain name of the server here. e.g. proxy.server.com
 
@@ -224,6 +230,8 @@ If you use the official Bark server, please fill the field with `api.day.app`.
 **msmtp_tls**: Mandatory if notification_type set to `msmtp`. Set to `on` or `off` to enable or disable TLS encryption. Defaults to `on`
 
 **msmtp_from**: Mandatory if notification_type set to `msmtp`. The sender's email address
+
+**msmtp_from_name**: Optional if notification_type set to `msmtp`. The display name shown for the sender. For example, `iCloudPD`.
 
 **msmtp_user**: Mandatory if notification_type set to `msmtp`. The login username for your SMTP provider
 
@@ -356,7 +364,7 @@ This will then place a multifactor authentication cookie into the /config folder
 
 After this, the container should start downloading your photos.
 
-Dockerfile has a health check which will change the status of the container to 'unhealthy' if the cookie is due to expire within a set number of days (notification_days) and also if the download fails.
+Dockerfile has a health check which will change the status of the container to 'unhealthy' if the cookie is due to expire within a set number of days (notification_days) and also if the download fails. Unless **wait_for_reauthentication** is set, in which case the container reports healthy while it waits for you to re-authenticate.
 
 ## MULTIFACTOR RE-AUTHENTICATION
 Every 30 days, the cookie will expire and need to be re-authenticated. This can be done by running the re-authentication script:
@@ -452,7 +460,7 @@ To run the script inside the currently running container, issue this command (as
 
 ## HEALTH CHECK
 
-I have built in a health check for this container. If the script detects a download error the container will be marked as unhealthy. You can then configure this container: https://hub.docker.com/r/willfarrell/autoheal/ to monitor iCloudPD and restart the unhealthy container. Please note, if your MFA cookie expires, the container will be marked as unhealthy, and will be restarted by the authoheal container every five minutes or so... This can lead to a lot of notifications if it happens while you're asleep!
+I have built in a health check for this container. If the script detects a download error the container will be marked as unhealthy. You can then configure this container: https://hub.docker.com/r/willfarrell/autoheal/ to monitor iCloudPD and restart the unhealthy container. Please note, if your MFA cookie expires, the container will be marked as unhealthy, and will be restarted by the authoheal container every five minutes or so... This can lead to a lot of notifications if it happens while you're asleep! Setting **wait_for_reauthentication=true** avoids this: the container stays up, reports healthy, and reminds you once per download_interval instead.
 
 ## TROUBLESHOOTING
 

@@ -124,6 +124,7 @@ write_variable media_id_warning
 write_variable msmtp_args --tls-starttls=off
 write_variable msmtp_auth on
 write_variable msmtp_from
+write_variable msmtp_from_name
 write_variable msmtp_host
 write_variable msmtp_pass
 write_variable msmtp_port
@@ -145,6 +146,7 @@ write_variable prowl_api_key
 write_variable pushover_sound
 write_variable pushover_token
 write_variable pushover_user
+write_variable reauth_notification_interval
 write_variable recent_only
 write_variable set_exif_datetime false
 write_variable sideways_copy_videos false
@@ -178,6 +180,7 @@ write_variable until_found
 write_variable user user
 write_variable user_id 1000
 write_variable video_path
+write_variable wait_for_reauthentication false
 write_variable webhook_https false
 write_variable webhook_id
 write_variable webhook_insecure
@@ -187,6 +190,7 @@ write_variable webhook_server
 write_variable wecom_id
 write_variable wecom_proxy
 write_variable wecom_secret
+write_variable xmp_sidecar false
 
 # Set case sensitive variables to lowercase
 notification_type_temp="$(grep -m1 "^notification_type=" "${temp_file}" | cut -d= -f2-)"
